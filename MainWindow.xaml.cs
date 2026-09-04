@@ -43,7 +43,7 @@ public sealed partial class MainWindow : Window
 
     // 玻璃渲染缓存
     private CanvasBitmap? _dispMap;
-    private Size _dispMapSize;
+    private Windows.Foundation.Size _dispMapSize;
     private CanvasBitmap? _cachedBg;
     private SoftwareBitmap? _cachedBgSource;
 

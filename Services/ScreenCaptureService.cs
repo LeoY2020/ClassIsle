@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.Imaging;

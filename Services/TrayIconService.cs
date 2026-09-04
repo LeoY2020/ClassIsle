@@ -199,7 +199,7 @@ public sealed class TrayIconService : IDisposable
         return DefWindowProcW(hWnd, msg, wParam, lParam);
     }
 
-    private unsafe void ShowContextMenu()
+    private void ShowContextMenu()
     {
         // 托盘菜单必须在前台窗口上下文中显示，否则点击外部无法关闭
         SetForegroundWindow(_hwnd);
