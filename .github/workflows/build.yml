@@ -21,11 +21,16 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
+    - name: Setup MSBuild (Visual Studio)
+      uses: microsoft/setup-msbuild@v2
+
     - name: Restore
       run: dotnet restore ClassIsle.csproj -p:Platform=${{ matrix.platform }}
 
     - name: Build
-      run: dotnet build ClassIsle.csproj -c Release -p:Platform=${{ matrix.platform }} --no-restore
+      env:
+        Platform: ${{ matrix.platform }}
+      run: msbuild ClassIsle.csproj /restore /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }}
 
     - name: Publish (self-contained, unpackaged)
       run: dotnet publish ClassIsle.csproj -c Release -r win-${{ matrix.platform }} --self-contained true -p:Platform=${{ matrix.platform }} -p:PublishSingleFile=false -o publish
