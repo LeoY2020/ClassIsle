@@ -1,9 +1,6 @@
 using System.Runtime.InteropServices;
 using ClassIsle.Models;
 using ClassIsle.Services;
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.Effects;
-using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Windowing;
@@ -12,10 +9,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Microsoft.Graphics.Canvas.Geometry;
-using Microsoft.Graphics.Canvas.Brushes;
 using Windows.Graphics;
-using Windows.Graphics.Imaging;
 using WinUIEx;
 
 namespace ClassIsle;
@@ -29,7 +23,6 @@ public sealed partial class MainWindow : Window
 
     private readonly AppSettings _settings;
     private readonly ScheduleService _schedule;
-    private readonly ScreenCaptureService _capture = new();
 
     private IslandState _state = IslandState.Collapsed;
     private DateTime _lastInteraction = DateTime.Now;
@@ -41,11 +34,9 @@ public sealed partial class MainWindow : Window
     private WeatherInfo? _weather;
     private NativeMethods.RECT _monitorRect;
 
-    // 玻璃渲染缓存
-    private CanvasBitmap? _dispMap;
-    private Windows.Foundation.Size _dispMapSize;
-    private CanvasBitmap? _cachedBg;
-    private SoftwareBitmap? _cachedBgSource;
+    // 玻璃渲染（WinUI Composition）
+    private ContainerVisual? _glassRoot;
+    private Windows.Foundation.Size _glassSize;
 
     // 胶囊屏幕区域（窗口坐标系，物理像素）
     private Windows.Foundation.Rect _pillRectDip;
@@ -116,8 +107,8 @@ public sealed partial class MainWindow : Window
         _subclassProc = SubclassProc;
         NativeMethods.SetWindowSubclass(_hwnd, _subclassProc, 1, 0);
 
-        // 启动实时屏幕捕获
-        try { _capture.Start(_hwnd); } catch { }
+        // 构建液态玻璃渲染层（尺寸就绪后由 UpdatePillRect 幂等重建）
+        UpdatePillRect();
 
         // 不抢焦点
         var ex = NativeMethods.GetWindowLong(_hwnd, NativeMethods.GWL_EXSTYLE);
@@ -133,7 +124,6 @@ public sealed partial class MainWindow : Window
     {
         _fastTimer.Stop();
         _secondTimer.Stop();
-        _capture.Dispose();
         if (_subclassProc != null)
         {
             NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, 1);
@@ -745,6 +735,7 @@ public sealed partial class MainWindow : Window
             var topLeft = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
             _pillRectDip = new Windows.Foundation.Rect(topLeft.X, topLeft.Y,
                 IslandRoot.ActualWidth, Math.Max(40, IslandRoot.ActualHeight));
+            TryBuildGlass();
         }
         catch { }
     }
@@ -757,197 +748,168 @@ public sealed partial class MainWindow : Window
         UpdateOtherComponents();
     }
 
-    // ==================== 液态玻璃渲染（Win2D） ====================
+    // ==================== 液态玻璃渲染（WinUI Composition） ====================
 
-    private void OnGlassUpdate(ICanvasAnimatedControl sender, CanvasAnimatedUpdateEventArgs args)
+    /// <summary>胶囊尺寸变化时（幂等）重建玻璃视觉树</summary>
+    private void TryBuildGlass()
     {
-        // 高光漂移等动画由时间驱动（Draw 中计算），此处无操作
+        try
+        {
+            var w = IslandRoot.ActualWidth;
+            var h = Math.Max(40, IslandRoot.ActualHeight);
+            if (w <= 0 || h <= 0) return;
+            if (_glassRoot != null
+                && Math.Abs(_glassSize.Width - w) < 0.5
+                && Math.Abs(_glassSize.Height - h) < 0.5)
+                return;
+            _glassSize = new Windows.Foundation.Size(w, h);
+            BuildGlassVisuals((float)w, (float)h);
+        }
+        catch { }
     }
 
-    private void OnGlassDraw(ICanvasAnimatedControl sender, CanvasAnimatedDrawEventArgs args)
+    /// <summary>
+    /// 构建液态玻璃六层视觉（自底向上）：
+    /// ⑥ 阴影+黑底座 → ① 实时背景模糊 → ② 菲涅尔（折射近似+边缘亮度） → ③ 黑色渐变 → ④ 漂移高光 → ⑤ 边框描边
+    /// </summary>
+    private void BuildGlassVisuals(float fw, float fh)
     {
-        var ds = args.DrawingSession;
-        if (_state == IslandState.Collapsed || IslandRoot.Visibility == Visibility.Collapsed)
-            return;
+        var compositor = ElementCompositionPreview.GetElementVisual(IslandRoot).Compositor;
+        var radius = fh / 2f;
 
-        if (_pillRectDip.Width <= 0) return;
-        var rect = _pillRectDip;
-        float radius = (float)(rect.Height / 2);
+        var root = compositor.CreateContainerVisual();
+        root.Size = new System.Numerics.Vector2(fw, fh);
 
-        // ---------- ① 实时背景模糊 ----------
-        var pxPerDip = sender.ConvertDipsToPixels(1f, CanvasDpiRounding.Round);
-        var capture = _capture.GetLatest();
-        if (capture != null && _capture.IsRunning)
+        // 胶囊圆角裁剪（所有层共享）
+        var pillGeo = compositor.CreateRoundedRectangleGeometry();
+        pillGeo.Size = root.Size;
+        pillGeo.CornerRadius = new System.Numerics.Vector2(radius);
+        var pillClip = compositor.CreateGeometricClip();
+        pillClip.Geometry = pillGeo;
+        root.Clip = pillClip;
+
+        // ⑥ 阴影（模糊 28 / 垂直偏移 6 / 黑 30%）+ 不透明黑底座
+        var baseVisual = compositor.CreateShapeVisual();
+        baseVisual.Size = root.Size;
+        var baseShape = compositor.CreateSpriteShape(pillGeo);
+        baseShape.FillBrush = compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
+        baseVisual.Shapes.Add(baseShape);
+        var shadow = compositor.CreateDropShadow();
+        shadow.BlurRadius = 28f;
+        shadow.Offset = new System.Numerics.Vector3(0, 6, 0);
+        shadow.Color = Windows.UI.Color.FromArgb(77, 0, 0, 0); // 30%
+        baseVisual.Shadow = shadow;
+        root.Children.Add(baseVisual);
+
+        // ① 实时背景模糊：Host Backdrop 由系统合成器采样窗口背后内容，
+        //    背后窗口移动/切换/变化时实时响应；模糊度足以让文字图标不可辨认
+        CompositionBrush backdrop;
+        try { backdrop = compositor.CreateHostBackdropBrush(); }
+        catch { backdrop = compositor.CreateBackdropBrush(); }
+        var blur = compositor.CreateSpriteVisual();
+        blur.Brush = backdrop;
+        // ② 菲涅尔折射（近似）：模糊层向四周放大 6%，边缘从胶囊外侧采样背景，
+        //    产生玻璃边缘向内弯曲的错位感；中心区域不受影响
+        blur.Size = new System.Numerics.Vector2(fw * 1.06f, fh * 1.12f);
+        blur.Offset = new System.Numerics.Vector3(-fw * 0.03f, -fh * 0.06f, 0);
+        root.Children.Add(blur);
+
+        // ② 菲涅尔边缘亮度（边缘 +5~8%，角部两方向叠加略高）
+        const float band = 6f; // 边缘带宽（px）
+        var fresnelH = compositor.CreateSpriteVisual();
+        fresnelH.Size = root.Size;
+        fresnelH.Brush = MakeEdgeGradient(compositor, fw, horizontal: true, band);
+        root.Children.Add(fresnelH);
+        var fresnelV = compositor.CreateSpriteVisual();
+        fresnelV.Size = root.Size;
+        fresnelV.Brush = MakeEdgeGradient(compositor, fh, horizontal: false, band);
+        root.Children.Add(fresnelV);
+
+        // ③ 黑色渐变叠加：上部近不透明纯黑 → 底部微透，透出模糊背景自然融合
+        var shade = compositor.CreateSpriteVisual();
+        shade.Size = root.Size;
+        var blackGrad = compositor.CreateLinearGradientBrush();
+        blackGrad.StartPoint = new System.Numerics.Vector2(0, 0);
+        blackGrad.EndPoint = new System.Numerics.Vector2(0, fh);
+        blackGrad.ColorStops.Insert(0, compositor.CreateColorGradientStop(0.00f, Windows.UI.Color.FromArgb(250, 0, 0, 0)));
+        blackGrad.ColorStops.Insert(1, compositor.CreateColorGradientStop(0.72f, Windows.UI.Color.FromArgb(240, 0, 0, 0)));
+        blackGrad.ColorStops.Insert(2, compositor.CreateColorGradientStop(0.92f, Windows.UI.Color.FromArgb(226, 0, 0, 0)));
+        blackGrad.ColorStops.Insert(3, compositor.CreateColorGradientStop(1.00f, Windows.UI.Color.FromArgb(212, 0, 0, 0)));
+        shade.Brush = blackGrad;
+        root.Children.Add(shade);
+
+        // ④ 实时高光：顶部内侧 2~4px 处的三条 RGB 微偏移条带（彩虹色散），
+        //    水平方向 ±3px 缓慢漂移，周期 10 秒（贝塞尔缓动，持续动画禁止静态）
+        var highlight = compositor.CreateContainerVisual();
+        float stripW = fw * 0.5f;
+        (byte A, byte R, byte G, byte B, float Y)[] tints =
         {
-            if (!ReferenceEquals(capture, _cachedBgSource))
-            {
-                _cachedBg?.Dispose();
-                _cachedBg = CanvasBitmap.CreateFromSoftwareBitmap(sender, capture);
-                _cachedBgSource = capture;
-            }
-
-            if (_cachedBg != null)
-            {
-                // DIP → 物理像素 → 捕获位图（下采样）坐标
-                float downScale = _capture.MonitorSize.Width > 0
-                    ? (float)_cachedBg.Size.Width / _capture.MonitorSize.Width : 1f;
-
-                var srcRect = new Windows.Foundation.Rect(
-                    rect.X * pxPerDip * downScale,
-                    rect.Y * pxPerDip * downScale,
-                    rect.Width * pxPerDip * downScale,
-                    rect.Height * pxPerDip * downScale);
-
-                ICanvasImage img = new CropEffect { Source = _cachedBg, SourceRectangle = srcRect };
-                img = new GaussianBlurEffect { Source = img, BlurAmount = 18f, Optimization = EffectOptimization.Balanced };
-                // ---------- ② 菲涅尔折射 ----------
-                var map = EnsureDisplacementMap(sender, rect, radius);
-                if (map != null)
-                {
-                    img = new DisplacementMapEffect
-                    {
-                        Source = img,
-                        Displacement = map,
-                        Amount = 10f,
-                        XChannelSelect = EffectChannelSelect.Red,
-                        YChannelSelect = EffectChannelSelect.Green,
-                    };
-                }
-                ds.DrawImage(img, rect, new Windows.Foundation.Rect(0, 0, rect.Width, rect.Height));
-            }
-        }
-
-        // ---------- ② 边缘亮度提升（+5~8%） ----------
-        var edgeGlow = new CanvasCommandList(sender);
-        using (var cl = edgeGlow.CreateDrawingSession())
+            (70, 255, 130, 130, 2.5f),
+            (110, 130, 255, 130, 3.2f),
+            (70, 130, 130, 255, 3.9f),
+        };
+        foreach (var (a, r, g, b, y) in tints)
         {
-            cl.DrawRoundedRectangle((float)rect.X, (float)rect.Y, (float)rect.Width, (float)rect.Height,
-                radius, radius, Microsoft.UI.Colors.White, 7f);
+            var strip = compositor.CreateSpriteVisual();
+            strip.Size = new System.Numerics.Vector2(stripW, 1.6f);
+            strip.Offset = new System.Numerics.Vector3(0, y, 0);
+            var grad = compositor.CreateLinearGradientBrush();
+            grad.StartPoint = new System.Numerics.Vector2(0, 0.8f);
+            grad.EndPoint = new System.Numerics.Vector2(stripW, 0.8f);
+            grad.ColorStops.Insert(0, compositor.CreateColorGradientStop(0f, Windows.UI.Color.FromArgb(0, r, g, b)));
+            grad.ColorStops.Insert(1, compositor.CreateColorGradientStop(0.5f, Windows.UI.Color.FromArgb(a, r, g, b)));
+            grad.ColorStops.Insert(2, compositor.CreateColorGradientStop(1f, Windows.UI.Color.FromArgb(0, r, g, b)));
+            strip.Brush = grad;
+            highlight.Children.Add(strip);
         }
-        ds.Blend = CanvasBlend.Add;
-        ds.DrawImage(new GaussianBlurEffect { Source = edgeGlow, BlurAmount = 5f }, (float)rect.X, (float)rect.Y);
-        ds.Blend = CanvasBlend.SourceOver;
+        var drift = compositor.CreateVector3KeyFrameAnimation();
+        var ease = compositor.CreateCubicBezierEasingFunction(
+            new System.Numerics.Vector2(0.42f, 0f), new System.Numerics.Vector2(0.58f, 1f));
+        drift.InsertKeyFrame(0f, new System.Numerics.Vector3(-3, 0, 0), ease);
+        drift.InsertKeyFrame(0.5f, new System.Numerics.Vector3(3, 0, 0), ease);
+        drift.InsertKeyFrame(1f, new System.Numerics.Vector3(-3, 0, 0), ease);
+        drift.Duration = TimeSpan.FromSeconds(10);
+        drift.IterationBehavior = AnimationIterationBehavior.Forever;
+        highlight.StartAnimation("Offset", drift);
+        root.Children.Add(highlight);
 
-        // ---------- ③ 黑色渐变叠加 ----------
-        // 有内容：内容区接近不透明纯黑，边缘保留渐变过渡
-        using (var layer = ds.CreateLayer(1f, rect))
-        {
-            var gradient = new CanvasLinearGradientBrush(sender, new[]
-            {
-                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 0f, Color = Windows.UI.Color.FromArgb(248, 0, 0, 0) },
-                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 0.75f, Color = Windows.UI.Color.FromArgb(238, 0, 0, 0) },
-                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 1f, Color = Windows.UI.Color.FromArgb(215, 0, 0, 0) },
-            })
-            {
-                StartPoint = new System.Numerics.Vector2((float)rect.X, (float)rect.Y),
-                EndPoint = new System.Numerics.Vector2((float)rect.X, (float)(rect.Y + rect.Height)),
-            };
-            var inset = new Windows.Foundation.Rect(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 3);
-            ds.FillRoundedRectangle((float)inset.X, (float)inset.Y, (float)inset.Width, (float)inset.Height,
-                radius - 1, radius - 1, gradient);
-        }
+        // ⑤ 边框描边：顶/侧 25% 白 → 底 8% 白（垂直渐变）
+        var borderGeo = compositor.CreateRoundedRectangleGeometry();
+        borderGeo.Size = new System.Numerics.Vector2(fw - 2, fh - 2);
+        borderGeo.Offset = new System.Numerics.Vector2(1, 1);
+        borderGeo.CornerRadius = new System.Numerics.Vector2(Math.Max(1f, radius - 1));
+        var borderVisual = compositor.CreateShapeVisual();
+        borderVisual.Size = root.Size;
+        var borderShape = compositor.CreateSpriteShape(borderGeo);
+        var borderGrad = compositor.CreateLinearGradientBrush();
+        borderGrad.StartPoint = new System.Numerics.Vector2(0, 0);
+        borderGrad.EndPoint = new System.Numerics.Vector2(0, fh);
+        borderGrad.ColorStops.Insert(0, compositor.CreateColorGradientStop(0f, Windows.UI.Color.FromArgb(64, 255, 255, 255)));
+        borderGrad.ColorStops.Insert(1, compositor.CreateColorGradientStop(1f, Windows.UI.Color.FromArgb(20, 255, 255, 255)));
+        borderShape.StrokeBrush = borderGrad;
+        borderShape.StrokeThickness = 1.2f;
+        borderVisual.Shapes.Add(borderShape);
+        root.Children.Add(borderVisual);
 
-        // ---------- ④ 实时高光（缓慢漂移 + 彩虹色散，圆角处沿弧线） ----------
-        double t = args.Timing.TotalTime.TotalSeconds;
-        float drift = (float)(Math.Sin(t / 10.0 * Math.PI * 2) * 3.0); // 周期 10 秒，幅度 ±3px
-        var highlightClip = new Windows.Foundation.Rect(rect.X + drift - 12, rect.Y - 1, rect.Width * 0.5, rect.Height * 0.55);
-        using (var layer = ds.CreateLayer(1f, highlightClip))
-        {
-            var geo = CanvasGeometry.CreateRoundedRectangle(sender,
-                (float)rect.X + 1.5f, (float)rect.Y + 2.5f,
-                (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
-            // 三条微偏移的 RGB 描边模拟彩虹色散
-            ds.DrawGeometry(geo, Windows.UI.Color.FromArgb(70, 255, 130, 130), 1.2f);
-            var geo2 = CanvasGeometry.CreateRoundedRectangle(sender,
-                (float)rect.X + 1.5f, (float)rect.Y + 3.2f,
-                (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
-            ds.DrawGeometry(geo2, Windows.UI.Color.FromArgb(110, 130, 255, 130), 1.2f);
-            var geo3 = CanvasGeometry.CreateRoundedRectangle(sender,
-                (float)rect.X + 1.5f, (float)rect.Y + 3.9f,
-                (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
-            ds.DrawGeometry(geo3, Windows.UI.Color.FromArgb(70, 130, 130, 255), 1.2f);
-        }
-
-        // ---------- ⑤ 边框描边 ----------
-        ds.DrawRoundedRectangle((float)rect.X, (float)rect.Y, (float)rect.Width, (float)rect.Height,
-            radius, radius, Windows.UI.Color.FromArgb(20, 255, 255, 255), 1f);
-        var topClip = new Windows.Foundation.Rect(rect.X, rect.Y, rect.Width, rect.Height - 10);
-        using (var layer = ds.CreateLayer(1f, topClip))
-        {
-            ds.DrawRoundedRectangle((float)rect.X, (float)rect.Y, (float)rect.Width, (float)rect.Height,
-                radius, radius, Windows.UI.Color.FromArgb(64, 255, 255, 255), 1f);
-        }
+        ElementCompositionPreview.SetElementChildVisual(GlassHost, root);
+        _glassRoot = root;
     }
 
-    /// <summary>生成菲涅尔折射位移贴图（边缘向内弯曲，强度线性衰减）</summary>
-    private CanvasBitmap? EnsureDisplacementMap(ICanvasResourceCreator device, Windows.Foundation.Rect rect, float radius)
+    /// <summary>菲涅尔边缘亮度渐变：边缘白色 → 6px 带内线性衰减至透明（横向或纵向）</summary>
+    private static CompositionBrush MakeEdgeGradient(Compositor compositor, float extent, bool horizontal, float band)
     {
-        int w = Math.Max(4, (int)Math.Ceiling(rect.Width));
-        int h = Math.Max(4, (int)Math.Ceiling(rect.Height));
-        if (_dispMap != null && _dispMapSize.Width == w && _dispMapSize.Height == h)
-            return _dispMap;
-
-        const int Band = 6;          // 边缘折射带宽度（px）
-        const float MaxDisp = 0.12f; // 位移强度（归一化）
-        var bytes = new byte[w * h * 4];
-        for (int y = 0; y < h; y++)
-        {
-            for (int x = 0; x < w; x++)
-            {
-                // 圆角矩形 SDF（内侧为正）
-                float d = RoundedRectSDF(x + 0.5f, y + 0.5f, w, h, radius);
-                int off = (y * w + x) * 4;
-                float r = 0.5f, g = 0.5f;
-                if (d < Band)
-                {
-                    // 距边界越近强度越大（线性衰减）
-                    float k = (Band - d) / Band;
-                    // 内法线方向：梯度
-                    float nx, ny;
-                    RoundedRectNormal(x + 0.5f, y + 0.5f, w, h, radius, out nx, out ny);
-                    r = 0.5f + nx * MaxDisp * k;
-                    g = 0.5f + ny * MaxDisp * k;
-                }
-                bytes[off + 0] = (byte)Math.Clamp(g * 255, 0, 255);
-                bytes[off + 1] = (byte)Math.Clamp(r * 255, 0, 255);
-                bytes[off + 2] = 0;
-                bytes[off + 3] = 255;
-            }
-        }
-        _dispMap?.Dispose();
-        _dispMap = CanvasBitmap.CreateFromBytes(device, bytes, w, h,
-            Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized, 96, CanvasAlphaMode.Premultiplied);
-        _dispMapSize = new Windows.Foundation.Size(w, h);
-        return _dispMap;
-    }
-
-    private static float RoundedRectSDF(float px, float py, float w, float h, float r)
-    {
-        float cx = Math.Abs(px - w / 2f) - (w / 2f - r);
-        float cy = Math.Abs(py - h / 2f) - (h / 2f - r);
-        float ox = Math.Max(cx, 0), oy = Math.Max(cy, 0);
-        float dist = MathF.Sqrt(ox * ox + oy * oy) + MathF.Min(Math.Max(cx, cy), 0) - r;
-        return -dist; // 内侧为正
-    }
-
-    private static void RoundedRectNormal(float px, float py, float w, float h, float r, out float nx, out float ny)
-    {
-        float cx = Math.Abs(px - w / 2f) - (w / 2f - r);
-        float cy = Math.Abs(py - h / 2f) - (h / 2f - r);
-        float sx = Math.Sign(px - w / 2f), sy = Math.Sign(py - h / 2f);
-        if (cx > 0 && cy > 0)
-        {
-            float len = MathF.Sqrt(cx * cx + cy * cy);
-            nx = sx * cx / Math.Max(len, 1e-6f);
-            ny = sy * cy / Math.Max(len, 1e-6f);
-        }
-        else if (cx > cy)
-        {
-            nx = sx; ny = 0;
-        }
-        else
-        {
-            nx = 0; ny = sy;
-        }
+        var b = compositor.CreateLinearGradientBrush();
+        b.StartPoint = new System.Numerics.Vector2(0, 0);
+        b.EndPoint = horizontal
+            ? new System.Numerics.Vector2(extent, 0)
+            : new System.Numerics.Vector2(0, extent);
+        var edge = Windows.UI.Color.FromArgb(14, 255, 255, 255);
+        var clear = Windows.UI.Color.FromArgb(0, 255, 255, 255);
+        var k = Math.Min(0.45f, band / Math.Max(1f, extent));
+        b.ColorStops.Insert(0, compositor.CreateColorGradientStop(0f, edge));
+        b.ColorStops.Insert(1, compositor.CreateColorGradientStop(k, clear));
+        b.ColorStops.Insert(2, compositor.CreateColorGradientStop(1 - k, clear));
+        b.ColorStops.Insert(3, compositor.CreateColorGradientStop(1f, edge));
+        return b;
     }
 }

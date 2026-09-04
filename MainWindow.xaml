@@ -3,20 +3,10 @@
     x:Class="ClassIsle.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     xmlns:local="using:ClassIsle"
     Title="ClassIsle">
 
     <Grid x:Name="Root" Background="Transparent">
-        <!-- 液态玻璃渲染层（背景模糊 / 菲涅尔 / 高光 / 描边） -->
-        <canvas:CanvasAnimatedControl
-            x:Name="Glass"
-            Draw="OnGlassDraw"
-            Update="OnGlassUpdate"
-            ClearColor="Transparent"
-            IsFixedTimeStep="False"
-            TargetElapsedTime="0:0:0:33"/>
-
         <!-- 灵动岛胶囊（组件内容） -->
         <Border x:Name="IslandRoot"
                 HorizontalAlignment="Center"
@@ -25,6 +15,9 @@
                 CornerRadius="20"
                 Background="#00000000">
             <Grid>
+                <!-- 液态玻璃渲染层（Composition 视觉挂载点，代码中填充） -->
+                <Grid x:Name="GlassHost"/>
+
                 <!-- 组件区 -->
                 <StackPanel x:Name="ComponentsPanel" Orientation="Horizontal" Spacing="8">
                     <!-- 组件在代码中按设置动态生成 -->
