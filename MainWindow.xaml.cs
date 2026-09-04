@@ -789,41 +789,37 @@ public sealed partial class MainWindow : Window
         root.Clip = pillClip;
 
         // ⑥ 阴影（模糊 28 / 垂直偏移 6 / 黑 30%）+ 不透明黑底座
-        var baseVisual = compositor.CreateShapeVisual();
+        //    阴影挂 SpriteVisual（ShapeVisual 无 Shadow，WASDK 2.4 走 SpriteVisual）
+        var baseVisual = compositor.CreateSpriteVisual();
         baseVisual.Size = root.Size;
-        var baseShape = compositor.CreateSpriteShape(pillGeo);
-        baseShape.FillBrush = compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
-        baseVisual.Shapes.Add(baseShape);
+        baseVisual.Brush = compositor.CreateColorBrush(Windows.UI.Color.FromArgb(255, 0, 0, 0));
         var shadow = compositor.CreateDropShadow();
         shadow.BlurRadius = 28f;
         shadow.Offset = new System.Numerics.Vector3(0, 6, 0);
         shadow.Color = Windows.UI.Color.FromArgb(77, 0, 0, 0); // 30%
         baseVisual.Shadow = shadow;
-        root.Children.Add(baseVisual);
+        root.Children.InsertAtTop(baseVisual);
 
-        // ① 实时背景模糊：Host Backdrop 由系统合成器采样窗口背后内容，
+        // ① 实时背景模糊：BackdropBrush 由合成器采样内容（窗口透明时亦采样桌面背后），
         //    背后窗口移动/切换/变化时实时响应；模糊度足以让文字图标不可辨认
-        CompositionBrush backdrop;
-        try { backdrop = compositor.CreateHostBackdropBrush(); }
-        catch { backdrop = compositor.CreateBackdropBrush(); }
         var blur = compositor.CreateSpriteVisual();
-        blur.Brush = backdrop;
+        blur.Brush = compositor.CreateBackdropBrush();
         // ② 菲涅尔折射（近似）：模糊层向四周放大 6%，边缘从胶囊外侧采样背景，
         //    产生玻璃边缘向内弯曲的错位感；中心区域不受影响
         blur.Size = new System.Numerics.Vector2(fw * 1.06f, fh * 1.12f);
         blur.Offset = new System.Numerics.Vector3(-fw * 0.03f, -fh * 0.06f, 0);
-        root.Children.Add(blur);
+        root.Children.InsertAtTop(blur);
 
         // ② 菲涅尔边缘亮度（边缘 +5~8%，角部两方向叠加略高）
         const float band = 6f; // 边缘带宽（px）
         var fresnelH = compositor.CreateSpriteVisual();
         fresnelH.Size = root.Size;
         fresnelH.Brush = MakeEdgeGradient(compositor, fw, horizontal: true, band);
-        root.Children.Add(fresnelH);
+        root.Children.InsertAtTop(fresnelH);
         var fresnelV = compositor.CreateSpriteVisual();
         fresnelV.Size = root.Size;
         fresnelV.Brush = MakeEdgeGradient(compositor, fh, horizontal: false, band);
-        root.Children.Add(fresnelV);
+        root.Children.InsertAtTop(fresnelV);
 
         // ③ 黑色渐变叠加：上部近不透明纯黑 → 底部微透，透出模糊背景自然融合
         var shade = compositor.CreateSpriteVisual();
@@ -836,7 +832,7 @@ public sealed partial class MainWindow : Window
         blackGrad.ColorStops.Insert(2, compositor.CreateColorGradientStop(0.92f, Windows.UI.Color.FromArgb(226, 0, 0, 0)));
         blackGrad.ColorStops.Insert(3, compositor.CreateColorGradientStop(1.00f, Windows.UI.Color.FromArgb(212, 0, 0, 0)));
         shade.Brush = blackGrad;
-        root.Children.Add(shade);
+        root.Children.InsertAtTop(shade);
 
         // ④ 实时高光：顶部内侧 2~4px 处的三条 RGB 微偏移条带（彩虹色散），
         //    水平方向 ±3px 缓慢漂移，周期 10 秒（贝塞尔缓动，持续动画禁止静态）
@@ -860,7 +856,7 @@ public sealed partial class MainWindow : Window
             grad.ColorStops.Insert(1, compositor.CreateColorGradientStop(0.5f, Windows.UI.Color.FromArgb(a, r, g, b)));
             grad.ColorStops.Insert(2, compositor.CreateColorGradientStop(1f, Windows.UI.Color.FromArgb(0, r, g, b)));
             strip.Brush = grad;
-            highlight.Children.Add(strip);
+            highlight.Children.InsertAtTop(strip);
         }
         var drift = compositor.CreateVector3KeyFrameAnimation();
         var ease = compositor.CreateCubicBezierEasingFunction(
@@ -871,7 +867,7 @@ public sealed partial class MainWindow : Window
         drift.Duration = TimeSpan.FromSeconds(10);
         drift.IterationBehavior = AnimationIterationBehavior.Forever;
         highlight.StartAnimation("Offset", drift);
-        root.Children.Add(highlight);
+        root.Children.InsertAtTop(highlight);
 
         // ⑤ 边框描边：顶/侧 25% 白 → 底 8% 白（垂直渐变）
         var borderGeo = compositor.CreateRoundedRectangleGeometry();
@@ -889,7 +885,7 @@ public sealed partial class MainWindow : Window
         borderShape.StrokeBrush = borderGrad;
         borderShape.StrokeThickness = 1.2f;
         borderVisual.Shapes.Add(borderShape);
-        root.Children.Add(borderVisual);
+        root.Children.InsertAtTop(borderVisual);
 
         ElementCompositionPreview.SetElementChildVisual(GlassHost, root);
         _glassRoot = root;
