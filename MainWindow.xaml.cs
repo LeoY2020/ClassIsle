@@ -78,8 +78,8 @@ public sealed partial class MainWindow : Window
         var mi = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>() };
         NativeMethods.GetMonitorInfo(hmon, ref mi);
         _monitorRect = mi.rcMonitor;
-        AppWindow.MoveAndResize(new PointInt32(_monitorRect.Left, _monitorRect.Top,
-            _monitorRect.Right - _monitorRect.Left, _monitorRect.Bottom - _monitorRect.Top));
+        AppWindow.Move(new PointInt32(_monitorRect.Left, _monitorRect.Top));
+        AppWindow.Resize(new SizeInt32(_monitorRect.Right - _monitorRect.Left, _monitorRect.Bottom - _monitorRect.Top));
 
         // WORKAROUND 5: AppWindow.* 之后重新应用样式
         ApplyWindowStyles();
@@ -531,9 +531,9 @@ public sealed partial class MainWindow : Window
     {
         IslandRoot.Margin = new Thickness(0, _settings.TopMargin, 0, 0);
         ComponentsPanel.Children.Clear();
-        _clockText = _countdownText = _countdownBar = _countdownCaption = _currentText =
-            _currentColorBlock = _moreText = _weatherText = _weatherIcon = _dateText =
-            _countdownDayText = _countdownDayCaption = null;
+        _clockText = null; _countdownText = null; _countdownBar = null; _countdownCaption = null;
+        _currentText = null; _currentColorBlock = null; _moreText = null; _weatherText = null;
+        _weatherIcon = null; _dateText = null; _countdownDayText = null; _countdownDayCaption = null;
 
         if (_settings.ShowWeather)
         {
@@ -644,7 +644,7 @@ public sealed partial class MainWindow : Window
     }
 
     private static SolidColorBrush White() => new(Microsoft.UI.Colors.White);
-    private static SolidColorBrush DimWhite() => new(Microsoft.UI.Color.FromArgb(255, 200, 200, 205));
+    private static SolidColorBrush DimWhite() => new(Windows.UI.Color.FromArgb(255, 200, 200, 205));
 
     private void UpdateClockComponent()
     {
@@ -699,7 +699,7 @@ public sealed partial class MainWindow : Window
             _currentText.Text = act?.Name ?? "空闲";
             var color = act != null ? CourseThemes.Get(act.Value.Name) : CourseThemes.Default;
             _currentColorBlock!.Background = new SolidColorBrush(
-                Microsoft.UI.Colors.FromArgb(255, color.R, color.G, color.B));
+                Windows.UI.Color.FromArgb(255, color.R, color.G, color.B));
         }
         if (_moreText != null)
         {
@@ -836,9 +836,9 @@ public sealed partial class MainWindow : Window
         {
             var gradient = new CanvasLinearGradientBrush(sender, new[]
             {
-                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 0f, Color = Microsoft.UI.Colors.FromArgb(248, 0, 0, 0) },
-                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 0.75f, Color = Microsoft.UI.Colors.FromArgb(238, 0, 0, 0) },
-                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 1f, Color = Microsoft.UI.Colors.FromArgb(215, 0, 0, 0) },
+                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 0f, Color = Windows.UI.Color.FromArgb(248, 0, 0, 0) },
+                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 0.75f, Color = Windows.UI.Color.FromArgb(238, 0, 0, 0) },
+                new Microsoft.Graphics.Canvas.Brushes.CanvasGradientStop { Position = 1f, Color = Windows.UI.Color.FromArgb(215, 0, 0, 0) },
             })
             {
                 StartPoint = new System.Numerics.Vector2((float)rect.X, (float)rect.Y),
@@ -858,25 +858,25 @@ public sealed partial class MainWindow : Window
                 (float)rect.X + 1.5f, (float)rect.Y + 2.5f,
                 (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
             // 三条微偏移的 RGB 描边模拟彩虹色散
-            ds.DrawGeometry(geo, Microsoft.UI.Colors.FromArgb(70, 255, 130, 130), 1.2f);
+            ds.DrawGeometry(geo, Windows.UI.Color.FromArgb(70, 255, 130, 130), 1.2f);
             var geo2 = CanvasGeometry.CreateRoundedRect(sender,
                 (float)rect.X + 1.5f, (float)rect.Y + 3.2f,
                 (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
-            ds.DrawGeometry(geo2, Microsoft.UI.Colors.FromArgb(110, 130, 255, 130), 1.2f);
+            ds.DrawGeometry(geo2, Windows.UI.Color.FromArgb(110, 130, 255, 130), 1.2f);
             var geo3 = CanvasGeometry.CreateRoundedRect(sender,
                 (float)rect.X + 1.5f, (float)rect.Y + 3.9f,
                 (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
-            ds.DrawGeometry(geo3, Microsoft.UI.Colors.FromArgb(70, 130, 130, 255), 1.2f);
+            ds.DrawGeometry(geo3, Windows.UI.Color.FromArgb(70, 130, 130, 255), 1.2f);
         }
 
         // ---------- ⑤ 边框描边 ----------
         ds.DrawRoundedRectangle((float)rect.X, (float)rect.Y, (float)rect.Width, (float)rect.Height,
-            radius, radius, Microsoft.UI.Colors.FromArgb(20, 255, 255, 255), 1f);
+            radius, radius, Windows.UI.Color.FromArgb(20, 255, 255, 255), 1f);
         var topClip = new Windows.Foundation.Rect(rect.X, rect.Y, rect.Width, rect.Height - 10);
         using (var layer = ds.CreateLayer(1f, topClip))
         {
             ds.DrawRoundedRectangle((float)rect.X, (float)rect.Y, (float)rect.Width, (float)rect.Height,
-                radius, radius, Microsoft.UI.Colors.FromArgb(64, 255, 255, 255), 1f);
+                radius, radius, Windows.UI.Color.FromArgb(64, 255, 255, 255), 1f);
         }
     }
 

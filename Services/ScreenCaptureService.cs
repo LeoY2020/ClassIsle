@@ -28,63 +28,46 @@ public sealed class ScreenCaptureService : IDisposable
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
-    // D3D11 设备创建（用于帧池）
-    [DllImport("d3d11.dll", EntryPoint = "CreateDirect3D11DeviceFromDXGIDevice", SetLastError = true)]
-    private static extern int CreateDirect3D11DeviceFromDXGIDevice(IntPtr dxgiDevice, out IntPtr graphicsDevice);
+    // D3D11 设备创建（用于帧池）——Microsoft 官方 ScreenCapture 配方：
+    // D3D11CreateDevice -> QI IDXGIDevice -> CreateDirect3D11DeviceFromDXGIDevice -> Marshal.GetObjectForIUnknown
+    [DllImport("d3d11.dll", EntryPoint = "CreateDirect3D11DeviceFromDXGIDevice", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    private static extern uint CreateDirect3D11DeviceFromDXGIDevice(IntPtr dxgiDevice, out IntPtr graphicsDevice);
 
     [DllImport("d3d11.dll", EntryPoint = "D3D11CreateDevice", SetLastError = true)]
     private static extern int D3D11CreateDevice(
         IntPtr adapter, uint driverType, IntPtr software, uint flags,
-        uint[]? featureLevels, uint featureLevelsCount,
+        uint[] featureLevels, uint featureLevelsCount,
         uint sdkVersion, out IntPtr device, out uint featureLevel, out IntPtr context);
 
-    private const uint D3D_DRIVER_TYPE_HARDWARE = 0;
     private const uint D3D11_SDK_VERSION = 7;
 
-    [DllImport("dxgi.dll")]
-    private static extern int CreateDXGIFactory1(ref Guid riid, out IntPtr factory);
-
-    [ComImport]
-    [Guid("54EC77FA-1377-44E6-8C32-88FD5F44C84C")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IDXGIFactory1
-    {
-        int EnumAdapters(uint index, out IDXGIAdapter adapter);
-        // 其余 vtable 槽位省略（只调用 EnumAdapters，且我们不调用）
-    }
-
-    [ComImport]
-    [Guid("62296ee1-5586-4fc5-8584-c483032a1c34")]
-    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-    private interface IDXGIAdapter
-    {
-    }
+    private static readonly Guid IDXGIDeviceGuid = new("54ec77fa-1377-44e6-8c32-88fd5f44c84c");
 
     private static Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice CreateD3DDevice()
     {
-        var levels = new uint[] { 11, 10, 9 };
-        var hr = D3D11CreateDevice(IntPtr.Zero, D3D_DRIVER_TYPE_HARDWARE, IntPtr.Zero, 0,
+        var levels = new uint[] { 11, 10, 9, 8 };
+        var hr = D3D11CreateDevice(IntPtr.Zero, 0, IntPtr.Zero, 0x40 /* BGRA */,
             levels, (uint)levels.Length, D3D11_SDK_VERSION,
             out var d3dDevice, out _, out _);
-        if (hr < 0)
-            Marshal.ThrowExceptionForHR(hr);
+        if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+
+        IntPtr dxgiDevice;
+        hr = Marshal.QueryInterface(d3dDevice, ref IDXGIDeviceGuid, out dxgiDevice);
+        Marshal.Release(d3dDevice);
+        if (hr < 0) Marshal.ThrowExceptionForHR(hr);
+
+        uint hr2 = CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice, out var inspectable);
+        Marshal.Release(dxgiDevice);
+        if (hr2 != 0) Marshal.ThrowExceptionForHR(unchecked((int)hr2));
+
         try
         {
-            hr = CreateDirect3D11DeviceFromDXGIDevice(d3dDevice, out var inspectable);
-            if (hr < 0)
-                Marshal.ThrowExceptionForHR(hr);
-            try
-            {
-                return Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice.FromAbi(inspectable);
-            }
-            finally
-            {
-                Marshal.Release(inspectable);
-            }
+            return Marshal.GetObjectForIUnknown(inspectable) as Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice
+                ?? throw new InvalidOperationException("无法创建 Direct3D 设备");
         }
         finally
         {
-            Marshal.Release(d3dDevice);
+            Marshal.Release(inspectable);
         }
     }
 
@@ -117,8 +100,6 @@ public sealed class ScreenCaptureService : IDisposable
         _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
             device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, poolSize);
         _session = _framePool.CreateCaptureSession(item);
-        // 不绘制系统黄色捕获边框
-        try { if (GraphicsCaptureSession.IsBorderRequiredPropertySupported()) _session.IsBorderRequired = false; } catch { }
         _framePool.FrameArrived += OnFrameArrived;
         _session.StartCapture();
         IsRunning = true;
@@ -155,9 +136,12 @@ public sealed class ScreenCaptureService : IDisposable
     public void Dispose()
     {
         IsRunning = false;
-        try { _framePool?.FrameArrived -= OnFrameArrived; } catch { }
+        if (_framePool != null)
+        {
+            try { _framePool.FrameArrived -= OnFrameArrived; } catch { }
+            try { _framePool.Dispose(); } catch { }
+        }
         try { _session?.Dispose(); } catch { }
-        try { _framePool?.Dispose(); } catch { }
         lock (_lock) { _latest?.Dispose(); _latest = null; }
     }
 }

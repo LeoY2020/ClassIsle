@@ -28,7 +28,7 @@ public sealed class TrayIconService : IDisposable
         public IntPtr hCursor;
         public IntPtr hbrBackground;
         [MarshalAs(UnmanagedType.LPWStr)] public string lpszMenuName;
-        public IntPtr lpszClassName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string lpszClassName;
         public IntPtr hIconSm;
     }
 
@@ -59,7 +59,7 @@ public sealed class TrayIconService : IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateWindowExW(
-        uint dwExStyle, ushort lpClassName, string lpWindowName, uint dwStyle,
+        uint dwExStyle, string lpClassName, string lpWindowName, uint dwStyle,
         int x, int y, int nWidth, int nHeight,
         IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
 
@@ -174,7 +174,7 @@ public sealed class TrayIconService : IDisposable
                 }
             }
         }
-        return CreateIcon(GetModuleHandleW(null), size, size, 1, 32, andMask, color);
+        return CreateIcon(GetModuleHandleW(null), size, size, (byte)1, (byte)32, andMask, color);
     }
 
     [DllImport("user32.dll")]
