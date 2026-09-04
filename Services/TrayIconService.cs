@@ -100,9 +100,12 @@ public sealed class TrayIconService : IDisposable
 
     private const uint NIM_ADD = 0x00000000;
     private const uint NIM_DELETE = 0x00000002;
+    private const uint NIM_SETVERSION = 0x00000004;
     private const uint NIF_MESSAGE = 0x00000001;
     private const uint NIF_ICON = 0x00000002;
     private const uint NIF_TIP = 0x00000004;
+    private const uint NIF_SHOWTIP = 0x00000008;
+    private const uint NOTIFYICON_VERSION_4 = 4;
     private static readonly IntPtr HWND_MESSAGE = new(-3);
     private const uint TPM_RETURNCMD = 0x00000100;
     private const uint TPM_RIGHTBUTTON = 0x00000002;
@@ -142,12 +145,25 @@ public sealed class TrayIconService : IDisposable
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATAW>(),
             hWnd = _hwnd,
             uID = 1,
-            uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
+            uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP,
             uCallbackMessage = WM_APP_TRAY,
             hIcon = LoadAppIconSafe(),
             szTip = "ClassIsle 灵动岛课表",
         };
         _added = Shell_NotifyIconW(NIM_ADD, ref data);
+
+        // 设置当前版本（4），确保右键菜单/工具提示等现代行为正确
+        if (_added)
+        {
+            var ver = new NOTIFYICONDATAW
+            {
+                cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATAW>(),
+                hWnd = _hwnd,
+                uID = 1,
+                uTimeoutOrVersion = NOTIFYICON_VERSION_4,
+            };
+            Shell_NotifyIconW(NIM_SETVERSION, ref ver);
+        }
     }
 
     /// <summary>运行时生成一个简易应用图标（蓝色圆点胶囊）</summary>

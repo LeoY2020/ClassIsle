@@ -345,11 +345,11 @@ public sealed partial class MainWindow : Window
         UpdateOtherComponents();
         UpdatePillRect();
 
-        IslandRoot.Opacity = 0.01f;
+        IslandRoot.Opacity = 0;
         NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_SHOWNOACTIVATE);
         NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
-        Root.UpdateLayout(); // 强制立即呈现一帧，避免刚显示时内容空白
+        Root.UpdateLayout(); // 强制布局，避免刚显示时内容空白
 
         // 弹性展开动画：纵向从压扁的"水滴"回弹到胶囊
         var visual = ElementCompositionPreview.GetElementVisual(IslandRoot);
@@ -371,12 +371,20 @@ public sealed partial class MainWindow : Window
         offset.Period = TimeSpan.FromMilliseconds(55);
         visual.StartAnimation("Offset", offset);
 
-        // 快速淡入
-        var fade = compositor.CreateScalarKeyFrameAnimation();
-        fade.InsertKeyFrame(0f, 0f);
-        fade.InsertKeyFrame(1f, 1f);
-        fade.Duration = TimeSpan.FromMilliseconds(120);
-        visual.StartAnimation("Opacity", fade);
+        // 快速淡入：用 XAML Storyboard（与折叠同一套可靠机制），
+        // 避免 Composition Opacity 动画在展开态把透明度卡在 0 导致内容不可见
+        var fadeStory = new Storyboard();
+        var fadeIn = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = new Duration(TimeSpan.FromMilliseconds(120)),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        Storyboard.SetTarget(fadeIn, IslandRoot);
+        Storyboard.SetTargetProperty(fadeIn, "Opacity");
+        fadeStory.Children.Add(fadeIn);
+        fadeStory.Begin();
     }
 
     /// <summary>收起：向上滑出 + 淡出，0.25 秒贝塞尔缓动</summary>
