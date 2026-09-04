@@ -52,7 +52,8 @@ public sealed class ScreenCaptureService : IDisposable
         if (hr < 0) Marshal.ThrowExceptionForHR(hr);
 
         IntPtr dxgiDevice;
-        hr = Marshal.QueryInterface(d3dDevice, ref IDXGIDeviceGuid, out dxgiDevice);
+        var guid = IDXGIDeviceGuid;
+        hr = Marshal.QueryInterface(d3dDevice, ref guid, out dxgiDevice);
         Marshal.Release(d3dDevice);
         if (hr < 0) Marshal.ThrowExceptionForHR(hr);
 

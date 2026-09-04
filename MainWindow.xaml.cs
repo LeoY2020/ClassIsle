@@ -12,6 +12,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.Graphics.Canvas.Geometry;
+using Microsoft.Graphics.Canvas.Brushes;
 using Windows.Graphics;
 using Windows.Graphics.Imaging;
 using WinUIEx;
@@ -809,7 +811,7 @@ public sealed partial class MainWindow : Window
                     img = new DisplacementMapEffect
                     {
                         Source = img,
-                        DisplacementMap = map,
+                        Displacement = map,
                         Amount = 10f,
                         XChannelSelect = EffectChannelSelect.Red,
                         YChannelSelect = EffectChannelSelect.Green,
@@ -845,7 +847,8 @@ public sealed partial class MainWindow : Window
                 EndPoint = new System.Numerics.Vector2((float)rect.X, (float)(rect.Y + rect.Height)),
             };
             var inset = new Windows.Foundation.Rect(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 3);
-            ds.FillRoundedRectangle(inset, radius - 1, radius - 1, gradient);
+            ds.FillRoundedRectangle((float)inset.X, (float)inset.Y, (float)inset.Width, (float)inset.Height,
+                radius - 1, radius - 1, gradient);
         }
 
         // ---------- ④ 实时高光（缓慢漂移 + 彩虹色散，圆角处沿弧线） ----------
@@ -918,7 +921,7 @@ public sealed partial class MainWindow : Window
         _dispMap?.Dispose();
         _dispMap = CanvasBitmap.CreateFromBytes(device, bytes, w, h,
             Windows.Graphics.DirectX.DirectXPixelFormat.B8G8R8A8UIntNormalized, 96, CanvasAlphaMode.Premultiplied);
-        _dispMapSize = new Size(w, h);
+        _dispMapSize = new Windows.Foundation.Size(w, h);
         return _dispMap;
     }
 

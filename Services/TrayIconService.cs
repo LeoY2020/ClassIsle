@@ -130,7 +130,7 @@ public sealed class TrayIconService : IDisposable
             lpszClassName = "ClassIsle.TrayWnd",
         };
         RegisterClassW(ref wc);
-        _hwnd = CreateWindowExW(0, 0, "ClassIsle.TrayWnd", "ClassIsle Tray", 0, 0, 0, 0,
+        _hwnd = CreateWindowExW(0, "ClassIsle.TrayWnd", "ClassIsle Tray", 0, 0, 0, 0, 0,
             (IntPtr)HWND_MESSAGE, IntPtr.Zero, hInstance, IntPtr.Zero);
     }
 
