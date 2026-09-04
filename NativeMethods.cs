@@ -121,4 +121,34 @@ internal static class NativeMethods
     [DllImport("comctl32.dll")]
     internal static extern IntPtr DefSubclassProc(
         IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+    // ===== Low-level mouse hook (点击岛外任意位置 → 折叠) =====
+    internal const int WH_MOUSE_LL = 14;
+    internal const uint WM_LBUTTONDOWN = 0x0201;
+    internal const uint WM_RBUTTONDOWN = 0x0204;
+    internal const uint WM_MBUTTONDOWN = 0x0207;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MSLLHOOKSTRUCT
+    {
+        public int ptX, ptY;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    internal delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SetWindowsHookExW(
+        int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr CallNextHookEx(
+        IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 }

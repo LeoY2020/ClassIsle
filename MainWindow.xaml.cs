@@ -20,6 +20,8 @@ public sealed partial class MainWindow : Window
 {
     private readonly IntPtr _hwnd;
     private NativeMethods.SUBCLASSPROC? _subclassProc;
+    private IntPtr _mouseHook;
+    private NativeMethods.LowLevelMouseProc? _mouseHookProc;
 
     private readonly AppSettings _settings;
     private readonly ScheduleService _schedule;
@@ -112,12 +114,23 @@ public sealed partial class MainWindow : Window
         _secondTimer.Start();
         _fastTimer.Start();
         _ = RefreshWeather();
+
+        // 全局鼠标钩子：点击岛外任意位置 → 折叠
+        _mouseHookProc = MouseHookProc;
+        _mouseHook = NativeMethods.SetWindowsHookExW(
+            NativeMethods.WH_MOUSE_LL, _mouseHookProc, IntPtr.Zero, 0);
     }
 
     private void Cleanup()
     {
         _fastTimer.Stop();
         _secondTimer.Stop();
+        if (_mouseHook != IntPtr.Zero)
+        {
+            NativeMethods.UnhookWindowsHookEx(_mouseHook);
+            _mouseHook = IntPtr.Zero;
+            _mouseHookProc = null;
+        }
         if (_subclassProc != null)
         {
             NativeMethods.RemoveWindowSubclass(_hwnd, _subclassProc, 1);
@@ -156,6 +169,30 @@ public sealed partial class MainWindow : Window
         if (uMsg == NativeMethods.WM_DISPLAYCHANGE)
             DispatcherQueue.TryEnqueue(ApplyWindowStyles);
         return NativeMethods.DefSubclassProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    /// <summary>低层鼠标钩子回调：在展开/通知态下，点击岛窗口之外任意位置即折叠</summary>
+    private IntPtr MouseHookProc(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0)
+        {
+            uint msg = (uint)wParam;
+            if (msg is NativeMethods.WM_LBUTTONDOWN or NativeMethods.WM_RBUTTONDOWN or NativeMethods.WM_MBUTTONDOWN)
+            {
+                var data = Marshal.PtrToStructure<NativeMethods.MSLLHOOKSTRUCT>(lParam);
+                int htPad = NativeMethods.GetDpiForWindow(_hwnd) / 96 * 10 + 8; // 命中容差（物理像素）
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (_state is IslandState.Expanded or IslandState.Notifying)
+                    {
+                        bool inside = data.ptX >= _windowRect.Left - htPad && data.ptX <= _windowRect.Right + htPad
+                                    && data.ptY >= _windowRect.Top - htPad && data.ptY <= _windowRect.Bottom + htPad;
+                        if (!inside) Collapse();
+                    }
+                });
+            }
+        }
+        return NativeMethods.CallNextHookEx(_mouseHook, nCode, wParam, lParam);
     }
 
     private void ApplyWindowStyles()
@@ -308,10 +345,11 @@ public sealed partial class MainWindow : Window
         UpdateOtherComponents();
         UpdatePillRect();
 
-        IslandRoot.Opacity = 0;
+        IslandRoot.Opacity = 0.01f;
         NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_SHOWNOACTIVATE);
         NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST, 0, 0, 0, 0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+        Root.UpdateLayout(); // 强制立即呈现一帧，避免刚显示时内容空白
 
         // 弹性展开动画：纵向从压扁的"水滴"回弹到胶囊
         var visual = ElementCompositionPreview.GetElementVisual(IslandRoot);

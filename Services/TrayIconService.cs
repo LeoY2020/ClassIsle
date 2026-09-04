@@ -144,7 +144,7 @@ public sealed class TrayIconService : IDisposable
             uID = 1,
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_APP_TRAY,
-            hIcon = LoadAppIcon(),
+            hIcon = LoadAppIconSafe(),
             szTip = "ClassIsle 灵动岛课表",
         };
         _added = Shell_NotifyIconW(NIM_ADD, ref data);
@@ -175,6 +175,13 @@ public sealed class TrayIconService : IDisposable
             }
         }
         return CreateIcon(GetModuleHandleW(null), size, size, (byte)1, (byte)32, andMask, color);
+    }
+
+    /// <summary>获取托盘图标：优先自绘图标；若生成失败回退系统标准图标，确保托盘可见</summary>
+    private static IntPtr LoadAppIconSafe()
+    {
+        var icon = LoadAppIcon();
+        return icon != IntPtr.Zero ? icon : NativeMethods.LoadIconW(IntPtr.Zero, NativeMethods.IDI_APPLICATION);
     }
 
     [DllImport("user32.dll")]
