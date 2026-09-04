@@ -15,7 +15,9 @@
     <WindowsAppSDKDeploymentManagerInitialize>false</WindowsAppSDKDeploymentManagerInitialize>
     <!-- 自包含 WASDK：把 Windows App SDK 组件内嵌进发布目录，目标机免装 1.x/2.x 运行时 -->
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-    <EnableMsixTooling>false</EnableMsixTooling>
+    <!-- EnableMsixTooling 必须为 true：否则 dotnet publish 不复制应用自身 resources.pri（WASDK #3718），
+         无包应用启动加载 XBF 失败 → 0xc000027b。CI 已搭配 AppxMSBuildToolsPath 提供 MakePri。 -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
     <!-- 生成 resources.pri（WinUI 启动必需），PriGen 工具由 CI 的 AppxMSBuildToolsPath 提供 -->
