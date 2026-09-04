@@ -21,10 +21,6 @@ jobs:
       with:
         dotnet-version: 8.0.x
 
-    - name: Install Windows App SDK workload
-      shell: pwsh
-      run: dotnet workload install wasdk-experimental --skip-manifest-update 2>$null; echo "skip if unavailable"
-
     - name: Restore
       run: dotnet restore ClassIsle.csproj -p:Platform=${{ matrix.platform }}
 
