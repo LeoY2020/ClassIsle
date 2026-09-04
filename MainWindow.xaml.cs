@@ -33,6 +33,7 @@ public sealed partial class MainWindow : Window
     private DateTime _lastWeatherRefresh = DateTime.MinValue;
     private WeatherInfo? _weather;
     private NativeMethods.RECT _monitorRect;
+    private NativeMethods.RECT _windowRect;
 
     // 玻璃渲染（WinUI Composition）
     private ContainerVisual? _glassRoot;
@@ -62,15 +63,8 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         AppWindow.IsShownInSwitchers = false;
 
-        // 窗口覆盖整个监视器（透明区域通过 WM_NCHITTEST 穿透）
-        var hmon = NativeMethods.MonitorFromWindow(_hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
-        var mi = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>() };
-        NativeMethods.GetMonitorInfo(hmon, ref mi);
-        _monitorRect = mi.rcMonitor;
-        AppWindow.Move(new PointInt32(_monitorRect.Left, _monitorRect.Top));
-        AppWindow.Resize(new SizeInt32(_monitorRect.Right - _monitorRect.Left, _monitorRect.Bottom - _monitorRect.Top));
-
-        // WORKAROUND 5: AppWindow.* 之后重新应用样式
+        // WORKAROUND 5: 应用窗口样式（不再整屏覆盖，改为顶部小胶囊条窗口，
+        // 位置/尺寸由 PlaceTopStrip() 在首次激活后按物理像素+DPI 精确定位）
         ApplyWindowStyles();
 
         Activated += OnFirstActivated;
@@ -114,7 +108,7 @@ public sealed partial class MainWindow : Window
         var ex = NativeMethods.GetWindowLong(_hwnd, NativeMethods.GWL_EXSTYLE);
         NativeMethods.SetWindowLong(_hwnd, NativeMethods.GWL_EXSTYLE, ex | 0x08000000 /* WS_EX_NOACTIVATE */);
 
-        BuildComponents();
+        Wake();
         _secondTimer.Start();
         _fastTimer.Start();
         _ = RefreshWeather();
@@ -142,8 +136,8 @@ public sealed partial class MainWindow : Window
         {
             var screenX = (short)(lParam.ToInt64() & 0xFFFF);
             var screenY = (short)((lParam.ToInt64() >> 16) & 0xFFFF);
-            var localX = screenX - _monitorRect.Left;
-            var localY = screenY - _monitorRect.Top;
+            var localX = screenX - _windowRect.Left;
+            var localY = screenY - _windowRect.Top;
 
             if (_state == IslandState.BlackScreen)
                 return HTCLIENT;
@@ -190,6 +184,73 @@ public sealed partial class MainWindow : Window
 
     private static bool IsWindows11OrGreater()
         => Environment.OSVersion.Version is { Major: > 10 } or { Major: 10, Build: >= 22000 };
+
+    /// <summary>刷新最近显示器边界（物理像素，用于顶栏定位与悬停唤醒判定）</summary>
+    private void EnsureMonitor()
+    {
+        var mon = NativeMethods.MonitorFromWindow(_hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        var mi = new NativeMethods.MONITORINFO { cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>() };
+        NativeMethods.GetMonitorInfo(mon, ref mi);
+        _monitorRect = mi.rcMonitor;
+    }
+
+    /// <summary>
+    /// 把窗口精确定位为"仅覆盖顶部胶囊条"的小窗口：
+    /// 依据 GetDpiForWindow 把 DIP 尺寸换算成物理像素，再用 SetWindowPos 居中于最近监视器顶部。
+    /// 全部使用物理像素运算，避免 AppWindow.Move/Resize 在高 DPI 下的坐标歧义导致窗口偏出屏幕。
+    /// </summary>
+    private void PlaceTopStrip()
+    {
+        EnsureMonitor();
+
+        double scale = NativeMethods.GetDpiForWindow(_hwnd) / 96.0;
+
+        // 胶囊内容尺寸（DIP）
+        IslandRoot.UpdateLayout();
+        double pillW = IslandRoot.ActualWidth;
+        double pillH = Math.Max(40, IslandRoot.ActualHeight);
+        if (pillW <= 0) return;
+
+        // 四边留白（DIP）：容纳 DWM 阴影与抗锯齿，保证胶囊完整落在可见区内
+        const double sideSlack = 12;
+        const double botSlack = 36; // 阴影在胶囊下方，预留更多
+        int winWdip = (int)Math.Ceiling(pillW + sideSlack * 2);
+        int winHdip = (int)Math.Ceiling(_settings.TopMargin + pillH + botSlack);
+
+        // DIP → 物理像素
+        int wPx = (int)Math.Round(winWdip * scale);
+        int hPx = (int)Math.Round(winHdip * scale);
+        int monW = _monitorRect.Right - _monitorRect.Left;
+        int monH = _monitorRect.Bottom - _monitorRect.Top;
+        if (wPx > monW) wPx = monW;
+        if (hPx > monH) hPx = monH;
+
+        // 水平居中、顶部对齐
+        int leftPx = _monitorRect.Left + (monW - wPx) / 2;
+        int topPx = _monitorRect.Top;
+
+        NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST,
+            leftPx, topPx, wPx, hPx,
+            NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
+
+        _windowRect = new NativeMethods.RECT
+        {
+            Left = leftPx, Top = topPx,
+            Right = leftPx + wPx, Bottom = topPx + hPx,
+        };
+    }
+
+    /// <summary>把窗口扩大到整屏（午休黑屏模式用），返回物理像素边界</summary>
+    private void ExpandToMonitor()
+    {
+        EnsureMonitor();
+        int monW = _monitorRect.Right - _monitorRect.Left;
+        int monH = _monitorRect.Bottom - _monitorRect.Top;
+        NativeMethods.SetWindowPos(_hwnd, NativeMethods.HWND_TOPMOST,
+            _monitorRect.Left, _monitorRect.Top, monW, monH,
+            NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_FRAMECHANGED);
+        _windowRect = _monitorRect;
+    }
 
     // ==================== 状态机：唤醒 / 收起 / 通知 / 黑屏 ====================
 
@@ -412,6 +473,11 @@ public sealed partial class MainWindow : Window
         if (_state == IslandState.BlackScreen) return;
         _state = IslandState.BlackScreen;
 
+        // 黑屏需覆盖整屏：先把小窗口扩为整屏再布局
+        ExpandToMonitor();
+        Root.UpdateLayout();
+        UpdatePillRect();
+
         var w = Root.ActualWidth;
         var h = Root.ActualHeight;
         var pillCx = _pillRectDip.X + _pillRectDip.Width / 2;
@@ -458,6 +524,9 @@ public sealed partial class MainWindow : Window
 
         void Finish()
         {
+            // 还原为顶部小窗口后隐藏
+            PlaceTopStrip();
+            UpdatePillRect();
             BlackOverlay.Visibility = Visibility.Collapsed;
             BlackOverlay.RenderTransform = null;
             IslandRoot.Visibility = Visibility.Visible;
@@ -617,6 +686,7 @@ public sealed partial class MainWindow : Window
         }
 
         UpdatePillRect();
+        PlaceTopStrip();
     }
 
     private static Grid MakeComponent(double width)
