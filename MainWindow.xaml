@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="ClassIsle.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    xmlns:local="using:ClassIsle"
+    Title="ClassIsle">
+
+    <Grid x:Name="Root" Background="Transparent">
+        <!-- 液态玻璃渲染层（背景模糊 / 菲涅尔 / 高光 / 描边） -->
+        <canvas:CanvasAnimatedControl
+            x:Name="Glass"
+            Draw="OnGlassDraw"
+            Update="OnGlassUpdate"
+            ClearColor="Transparent"
+            IsFixedTimeStep="False"
+            TargetElapsedTime="0:0:0:33"/>
+
+        <!-- 灵动岛胶囊（组件内容） -->
+        <Border x:Name="IslandRoot"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,16,0,0"
+                CornerRadius="20"
+                Background="#00000000">
+            <Grid>
+                <!-- 组件区 -->
+                <StackPanel x:Name="ComponentsPanel" Orientation="Horizontal" Spacing="8">
+                    <!-- 组件在代码中按设置动态生成 -->
+                </StackPanel>
+
+                <!-- 通知区（事件触发时替代组件显示） -->
+                <StackPanel x:Name="NotifyPanel" Orientation="Horizontal" Spacing="12"
+                            Visibility="Collapsed" VerticalAlignment="Center">
+                    <TextBlock x:Name="NotifyText" FontSize="18" FontWeight="SemiBold"
+                               Foreground="White" VerticalAlignment="Center"/>
+                    <Button x:Name="BlackScreenButton" Content="黑屏"
+                            Foreground="White" Background="#33FFFFFF"
+                            BorderBrush="#55FFFFFF" FontSize="14"
+                            Padding="14,4" CornerRadius="13"
+                            VerticalAlignment="Center" Click="OnBlackScreenClick"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 全屏黑屏层（午休黑屏模式） -->
+        <Grid x:Name="BlackOverlay" Opacity="0" Visibility="Collapsed" Background="Black">
+            <Button x:Name="CloseBlackButton" Content="关闭黑屏"
+                    Foreground="White" Background="#22000000"
+                    BorderBrush="#55FFFFFF" FontSize="14"
+                    Padding="18,8" CornerRadius="15"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    Margin="0,0,48,48" Click="OnCloseBlackClick"/>
+        </Grid>
+    </Grid>
+</Window>

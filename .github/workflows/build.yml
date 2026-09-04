@@ -1,0 +1,41 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [ x64 ]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Install Windows App SDK workload
+      shell: pwsh
+      run: dotnet workload install wasdk-experimental --skip-manifest-update 2>$null; echo "skip if unavailable"
+
+    - name: Restore
+      run: dotnet restore ClassIsle.csproj -p:Platform=${{ matrix.platform }}
+
+    - name: Build
+      run: dotnet build ClassIsle.csproj -c Release -p:Platform=${{ matrix.platform }} --no-restore
+
+    - name: Publish (self-contained, unpackaged)
+      run: dotnet publish ClassIsle.csproj -c Release -r win-${{ matrix.platform }} --self-contained true -p:Platform=${{ matrix.platform }} -p:PublishSingleFile=false -o publish
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ClassIsle-win-${{ matrix.platform }}
+        path: publish

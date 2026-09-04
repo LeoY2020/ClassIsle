@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>ClassIsle</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWinUI>true</UseWinUI>
+    <EnableXamlDiagnostics>false</EnableXamlDiagnostics>
+    <Platforms>x64;x86;arm64</Platforms>
+    <!-- Unpackaged: runs without MSIX -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKDeploymentManagerInitialize>false</WindowsAppSDKDeploymentManagerInitialize>
+    <EnableMsixTooling>false</EnableMsixTooling>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
+    <EnableMrtTooling>false</EnableMrtTooling>
+    <DefaultLanguage>zh-CN</DefaultLanguage>
+    <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250205002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1744" PrivateAssets="all" />
+    <!-- TransparentTintBackdrop for per-pixel alpha windows -->
+    <PackageReference Include="WinUIEx" Version="2.5.1" />
+    <!-- Win2D: real-time background blur / fresnel / highlight rendering -->
+    <PackageReference Include="Microsoft.Graphics.Win2D" Version="1.3.1" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="ClassIsle.GuideWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="欢迎使用 ClassIsle">
+
+    <Grid Padding="36" RowSpacing="20" Background="#202024">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="欢迎使用 ClassIsle" FontSize="24" FontWeight="Bold" Foreground="White"/>
+
+        <StackPanel Grid.Row="1" Spacing="18">
+            <TextBlock FontSize="15" Foreground="White" TextWrapping="Wrap"
+                       Text="ClassIsle 是一个顶部灵动岛式课表悬浮工具，启动后驻留系统托盘。"/>
+
+            <Border Background="#224BAAFF" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="8">
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="#FF4BAAFF" Text="如何唤出灵动岛"/>
+                    <TextBlock FontSize="13" Foreground="#DDDDDD" TextWrapping="Wrap"
+                               Text="• 触屏：从屏幕顶部任意位置向下滑动&#x0a;• 鼠标：将光标移动到距离屏幕顶边 5 像素以内的区域"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="#224BAAFF" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="8">
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="#FF4BAAFF" Text="托盘与设置"/>
+                    <TextBlock FontSize="13" Foreground="#DDDDDD" TextWrapping="Wrap"
+                               Text="右键点击系统托盘中的 ClassIsle 图标，可选择「设置」或「退出」。所有课表、通知、灵动岛行为均可在设置中调整。"/>
+                </StackPanel>
+            </Border>
+
+            <Border Background="#224BAAFF" CornerRadius="8" Padding="14">
+                <StackPanel Spacing="8">
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="#FF4BAAFF" Text="黑屏午休"/>
+                    <TextBlock FontSize="13" Foreground="#DDDDDD" TextWrapping="Wrap"
+                               Text="午休时间通知会在灵动岛旁显示「黑屏」按钮，点击后灵动岛放大为全屏黑屏覆盖层，帮助你安心午睡。午休结束自动退出黑屏；也可以随时点击右下角的「关闭黑屏」。"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Button Grid.Row="2" Content="开始使用" HorizontalAlignment="Right"
+                Background="#FF4BAAFF" Foreground="White" Padding="28,8" Click="OnStart"/>
+    </Grid>
+</Window>

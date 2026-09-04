@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="ClassIsle.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:ClassIsle.Models"
+    Title="ClassIsle 设置">
+
+    <Grid Padding="24" RowSpacing="16" Background="#202024">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="ClassIsle 设置" FontSize="22" FontWeight="Bold" Foreground="White"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="20">
+
+                <!-- 课表设置 -->
+                <TextBlock Text="课表设置" FontSize="16" FontWeight="SemiBold" Foreground="#FF4BAAFF"/>
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="星期" VerticalAlignment="Center" Foreground="White" Width="50"/>
+                        <ComboBox x:Name="DayPicker" Width="100" SelectionChanged="OnDayChanged">
+                            <ComboBoxItem Content="周一" Tag="0"/>
+                            <ComboBoxItem Content="周二" Tag="1"/>
+                            <ComboBoxItem Content="周三" Tag="2"/>
+                            <ComboBoxItem Content="周四" Tag="3"/>
+                            <ComboBoxItem Content="周五" Tag="4"/>
+                            <ComboBoxItem Content="周六" Tag="5"/>
+                            <ComboBoxItem Content="周日" Tag="6"/>
+                        </ComboBox>
+                        <Button Content="添加课程" Click="OnAddCourse" Background="#334BAAFF" Foreground="White"/>
+                        <Button Content="删除所选" Click="OnRemoveCourse" Background="#33AA3333" Foreground="White"/>
+                    </StackPanel>
+                    <ListView x:Name="CourseList" Height="200" BorderBrush="#44FFFFFF" BorderThickness="1"
+                              SelectionMode="Single" IsItemClickEnabled="False">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="local:CourseEntry">
+                                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                    <TextBox Text="{x:Bind Name, Mode=TwoWay}" Width="100" Header="课程"/>
+                                    <TextBox Text="{x:Bind StartTime, Mode=TwoWay}" Width="70" Header="上课"/>
+                                    <TextBox Text="{x:Bind EndTime, Mode=TwoWay}" Width="70" Header="下课"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <TextBox x:Name="LunchStartBox" Header="午饭开始" Width="90"/>
+                        <TextBox x:Name="LunchEndBox" Header="午饭结束" Width="90"/>
+                        <TextBox x:Name="NapStartBox" Header="午休开始" Width="90"/>
+                        <TextBox x:Name="NapEndBox" Header="午休结束" Width="90"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <NumberBox x:Name="PrepareBellBox" Header="预备铃提前（分钟，0=无）" Minimum="0" Maximum="30" Width="180" SpinButtonPlacementMode="Compact"/>
+                        <NumberBox x:Name="NotifySecondsBox" Header="通知持续（秒）" Minimum="3" Maximum="300" Width="150" SpinButtonPlacementMode="Compact"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 灵动岛设置 -->
+                <TextBlock Text="灵动岛设置" FontSize="16" FontWeight="SemiBold" Foreground="#FF4BAAFF"/>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <NumberBox x:Name="IdleSecondsBox" Header="无操作待机时长（秒）" Minimum="3" Maximum="120" Width="190" SpinButtonPlacementMode="Compact"/>
+                    <NumberBox x:Name="TopMarginBox" Header="距屏幕顶部边距（px）" Minimum="0" Maximum="200" Width="190" SpinButtonPlacementMode="Compact"/>
+                </StackPanel>
+
+                <!-- 通用设置 -->
+                <TextBlock Text="通用设置" FontSize="16" FontWeight="SemiBold" Foreground="#FF4BAAFF"/>
+                <StackPanel Spacing="8">
+                    <CheckBox x:Name="AutoStartBox" Content="开机自启" Foreground="White"/>
+                    <TextBlock Text="组件显示开关" Foreground="White"/>
+                    <StackPanel Orientation="Horizontal" Spacing="18">
+                        <CheckBox x:Name="ShowDateBox" Content="当前日期" Foreground="White"/>
+                        <CheckBox x:Name="ShowCountdownBox" Content="活动倒计时" Foreground="White"/>
+                        <CheckBox x:Name="ShowCurrentBox" Content="当前活动" Foreground="White"/>
+                        <CheckBox x:Name="ShowMoreBox" Content="更多活动" Foreground="White"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="18">
+                        <CheckBox x:Name="ShowWeatherBox" Content="天气" Foreground="White"/>
+                        <CheckBox x:Name="ShowCountdownDayBox" Content="倒计日" Foreground="White"/>
+                        <CheckBox x:Name="ShowClockBox" Content="当前时间" Foreground="White"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <TextBox x:Name="CityBox" Header="城市名" Width="120"/>
+                        <TextBox x:Name="LatitudeBox" Header="纬度" Width="90"/>
+                        <TextBox x:Name="LongitudeBox" Header="经度" Width="90"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <TextBox x:Name="CountdownTitleBox" Header="倒计日标题" Width="140"/>
+                        <TextBox x:Name="CountdownDateBox" Header="倒计日日期（yyyy-MM-dd）" Width="170"/>
+                    </StackPanel>
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right">
+            <Button Content="保存" Click="OnSave" Background="#FF4BAAFF" Foreground="White" Padding="24,6"/>
+            <Button Content="取消" Click="OnCancel" Padding="24,6"/>
+        </StackPanel>
+    </Grid>
+</Window>
