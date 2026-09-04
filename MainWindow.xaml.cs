@@ -35,8 +35,6 @@ public sealed partial class MainWindow : Window
     private DateTime _lastInteraction = DateTime.Now;
     private DateTime _notifyEnd = DateTime.Now;
     private bool _notifyIsNap;
-    private string _notifyCourseName = "";
-
     private readonly DispatcherTimer _fastTimer = new() { Interval = TimeSpan.FromMilliseconds(25) };
     private readonly DispatcherTimer _secondTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private DateTime _lastWeatherRefresh = DateTime.MinValue;
@@ -51,8 +49,6 @@ public sealed partial class MainWindow : Window
 
     // 胶囊屏幕区域（窗口坐标系，物理像素）
     private Windows.Foundation.Rect _pillRectDip;
-    private bool _suppressIdle;
-
     public MainWindow(AppSettings settings)
     {
         _settings = settings;
@@ -219,7 +215,7 @@ public sealed partial class MainWindow : Window
                 if (nearTop) Wake();
             }
         }
-        else if (_state is IslandState.Expanded or IslandState.Notifying && !_suppressIdle)
+        else if (_state is IslandState.Expanded or IslandState.Notifying)
         {
             // 午休通知持续到午休结束，不参与待机收起
             if (_state == IslandState.Notifying && _notifyIsNap) return;
