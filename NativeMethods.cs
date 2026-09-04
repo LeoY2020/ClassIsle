@@ -151,4 +151,8 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern IntPtr CallNextHookEx(
         IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern IntPtr LoadIconW(IntPtr hInstance, IntPtr lpIconName);
+    internal static readonly IntPtr IDI_APPLICATION = new(32512);
 }
