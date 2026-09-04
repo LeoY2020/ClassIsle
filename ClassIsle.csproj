@@ -13,6 +13,8 @@
     <!-- Unpackaged: runs without MSIX -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKDeploymentManagerInitialize>false</WindowsAppSDKDeploymentManagerInitialize>
+    <!-- 自包含 WASDK：把 Windows App SDK 组件内嵌进发布目录，目标机免装 1.x/2.x 运行时 -->
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <EnableMsixTooling>false</EnableMsixTooling>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
@@ -22,8 +24,8 @@
     <PublishReadyToRun>false</PublishReadyToRun>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1744" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" PrivateAssets="all" />
     <!-- TransparentTintBackdrop for per-pixel alpha windows -->
     <PackageReference Include="WinUIEx" Version="2.5.1" />
     <!-- Win2D: real-time background blur / fresnel / highlight rendering -->

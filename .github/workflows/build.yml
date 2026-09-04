@@ -27,18 +27,7 @@ jobs:
     - name: Restore
       run: dotnet restore ClassIsle.csproj -p:Platform=${{ matrix.platform }}
 
-    - name: Build (Visual Studio msbuild + PriGen tasks)
-      shell: pwsh
-      env:
-        Platform: ${{ matrix.platform }}
-      run: |
-        $vs = & vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-        $dll = Get-ChildItem "$vs\MSBuild" -Recurse -Filter Microsoft.Build.Packaging.Pri.Tasks.dll -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-        if (-not $dll) { throw "Microsoft.Build.Packaging.Pri.Tasks.dll not found under VS MSBuild ($vs)" }
-        $priPath = Split-Path $dll
-        msbuild ClassIsle.csproj /restore /t:Build /p:Configuration=Release /p:Platform=${{ matrix.platform }} "/p:AppxMSBuildToolsPath=$priPath\"
-
-    - name: Publish (self-contained, unpackaged)
+    - name: Publish (self-contained, WASDK embedded, no 1.x/2.x runtime needed)
       shell: pwsh
       run: |
         $vs = & vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
