@@ -18,7 +18,7 @@
     <EnableMsixTooling>false</EnableMsixTooling>
     <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
     <GenerateAppxPackageOnBuild>false</GenerateAppxPackageOnBuild>
-    <EnableMrtTooling>false</EnableMrtTooling>
+    <!-- 生成 resources.pri（WinUI 启动必需），PriGen 工具由 CI 的 AppxMSBuildToolsPath 提供 -->
     <DefaultLanguage>zh-CN</DefaultLanguage>
     <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
     <PublishReadyToRun>false</PublishReadyToRun>
