@@ -829,7 +829,7 @@ public sealed partial class MainWindow : Window
                 radius, radius, Microsoft.UI.Colors.White, 7f);
         }
         ds.Blend = CanvasBlend.Add;
-        ds.DrawImage(new GaussianBlurEffect { Source = edgeGlow, BlurAmount = 5f }, rect);
+        ds.DrawImage(new GaussianBlurEffect { Source = edgeGlow, BlurAmount = 5f }, (float)rect.X, (float)rect.Y);
         ds.Blend = CanvasBlend.SourceOver;
 
         // ---------- ③ 黑色渐变叠加 ----------
@@ -857,16 +857,16 @@ public sealed partial class MainWindow : Window
         var highlightClip = new Windows.Foundation.Rect(rect.X + drift - 12, rect.Y - 1, rect.Width * 0.5, rect.Height * 0.55);
         using (var layer = ds.CreateLayer(1f, highlightClip))
         {
-            var geo = CanvasGeometry.CreateRoundedRect(sender,
+            var geo = CanvasGeometry.CreateRoundedRectangle(sender,
                 (float)rect.X + 1.5f, (float)rect.Y + 2.5f,
                 (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
             // 三条微偏移的 RGB 描边模拟彩虹色散
             ds.DrawGeometry(geo, Windows.UI.Color.FromArgb(70, 255, 130, 130), 1.2f);
-            var geo2 = CanvasGeometry.CreateRoundedRect(sender,
+            var geo2 = CanvasGeometry.CreateRoundedRectangle(sender,
                 (float)rect.X + 1.5f, (float)rect.Y + 3.2f,
                 (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
             ds.DrawGeometry(geo2, Windows.UI.Color.FromArgb(110, 130, 255, 130), 1.2f);
-            var geo3 = CanvasGeometry.CreateRoundedRect(sender,
+            var geo3 = CanvasGeometry.CreateRoundedRectangle(sender,
                 (float)rect.X + 1.5f, (float)rect.Y + 3.9f,
                 (float)rect.Width - 3f, (float)rect.Height - 4f, radius - 2, radius - 2);
             ds.DrawGeometry(geo3, Windows.UI.Color.FromArgb(70, 130, 130, 255), 1.2f);

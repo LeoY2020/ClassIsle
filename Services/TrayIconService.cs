@@ -103,7 +103,7 @@ public sealed class TrayIconService : IDisposable
     private const uint NIF_MESSAGE = 0x00000001;
     private const uint NIF_ICON = 0x00000002;
     private const uint NIF_TIP = 0x00000004;
-    private const uint HWND_MESSAGE = 0xFFFFFFFF;
+    private static readonly IntPtr HWND_MESSAGE = new(-3);
     private const uint TPM_RETURNCMD = 0x00000100;
     private const uint TPM_RIGHTBUTTON = 0x00000002;
     private const uint WM_COMMAND = 0x0111;
@@ -131,7 +131,7 @@ public sealed class TrayIconService : IDisposable
         };
         RegisterClassW(ref wc);
         _hwnd = CreateWindowExW(0, "ClassIsle.TrayWnd", "ClassIsle Tray", 0, 0, 0, 0, 0,
-            (IntPtr)HWND_MESSAGE, IntPtr.Zero, hInstance, IntPtr.Zero);
+            HWND_MESSAGE, IntPtr.Zero, hInstance, IntPtr.Zero);
     }
 
     public void Show()
